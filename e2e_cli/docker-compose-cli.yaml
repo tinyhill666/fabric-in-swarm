@@ -1,0 +1,214 @@
+version: '3'
+
+services:
+
+  orderer:
+    #服务名称不能包含点(.)，否则可能报Error response from daemon: rpc error: code = 3 desc = name must be valid as a DNS name component
+      image: hyperledger/fabric-orderer:x86_64-1.0.0
+      environment:
+        - ORDERER_GENERAL_LOGLEVEL=debug
+        - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+        - ORDERER_GENERAL_GENESISMETHOD=file
+        - ORDERER_GENERAL_GENESISFILE=/etc/hyperledger/configtx/genesis.block
+        - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+        - ORDERER_GENERAL_LOCALMSPDIR=/etc/hyperledger/crypto/orderer/msp
+        - ORDERER_GENERAL_TLS_ENABLED=false
+        - ORDERER_GENERAL_TLS_PRIVATEKEY=/etc/hyperledger/crypto/orderer/tls/server.key
+        - ORDERER_GENERAL_TLS_CERTIFICATE=/etc/hyperledger/crypto/orderer/tls/server.crt
+        - ORDERER_GENERAL_TLS_ROOTCAS=[/etc/hyperledger/crypto/orderer/tls/ca.crt, /etc/hyperledger/crypto/peerOrg1/tls/ca.crt, /etc/hyperledger/crypto/peerOrg2/tls/ca.crt]
+      working_dir: /opt/gopath/src/github.com/hyperledger/fabric/orderers
+      command: orderer
+      ports:
+        - 7050:7050
+      volumes:
+          - /mnt/nfs/fabric-in-swarm/artifacts:/etc/hyperledger/configtx
+          - /mnt/nfs/fabric-in-swarm/artifacts/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/:/etc/hyperledger/crypto/orderer
+          - /mnt/nfs/fabric-in-swarm/artifacts/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/:/etc/hyperledger/crypto/peerOrg1
+          - /mnt/nfs/fabric-in-swarm/artifacts/crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/:/etc/hyperledger/crypto/peerOrg2
+      networks:
+        default:
+          aliases:
+          - orderer.example.com
+
+  peer0:
+      image: hyperledger/fabric-peer:x86_64-1.0.0
+      environment:
+        - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+        # GODEBUG=netdns=go 在阿里云环境需要这个环境变量channel
+        - GODEBUG=netdns=go
+        - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=default
+        # default是stack默认的网络，全称是stack名称_default
+        - CORE_LOGGING_LEVEL=DEBUG
+        - CORE_PEER_GOSSIP_USELEADERELECTION=true
+        - CORE_PEER_GOSSIP_ORGLEADER=false
+        - CORE_PEER_GOSSIP_SKIPHANDSHAKE=true
+        - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/crypto/peer/msp
+        - CORE_PEER_TLS_ENABLED=false
+        - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/crypto/peer/tls/server.key
+        - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/crypto/peer/tls/server.crt
+        - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto/peer/tls/ca.crt
+        #
+        - CORE_PEER_ID=peer0.org1.example.com
+        - CORE_PEER_LOCALMSPID=Org1MSP
+        - CORE_PEER_ADDRESS=${FABRIC_IP}:7051
+        # peer启动的chaincode运行环境是通过 unix:///host/var/run/docker.sock 启动的，脱离在docker stack 外部。所以需要给外部访问地址才能和peer联通
+      working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+      command: peer node start
+      ports:
+        - 7051:7051
+        - 7053:7053
+      volumes:
+          - /var/run/:/host/var/run/
+          - /mnt/nfs/fabric-in-swarm/artifacts/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/:/etc/hyperledger/crypto/peer
+      depends_on:
+        - orderer
+      networks:
+        default:
+          aliases:
+          - peer0.org1.example.com
+
+  peer1:
+      image: hyperledger/fabric-peer:x86_64-1.0.0
+      environment:
+        - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+        # GODEBUG=netdns=go 在阿里云环境需要这个环境变量channel
+        - GODEBUG=netdns=go
+        - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=default
+        # default是stack默认的网络，全称是stack名称_default
+        - CORE_LOGGING_LEVEL=DEBUG
+        - CORE_PEER_GOSSIP_USELEADERELECTION=true
+        - CORE_PEER_GOSSIP_ORGLEADER=false
+        - CORE_PEER_GOSSIP_SKIPHANDSHAKE=true
+        - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/crypto/peer/msp
+        - CORE_PEER_TLS_ENABLED=false
+        - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/crypto/peer/tls/server.key
+        - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/crypto/peer/tls/server.crt
+        - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto/peer/tls/ca.crt
+        #
+        - CORE_PEER_ID=peer1.org1.example.com
+        - CORE_PEER_LOCALMSPID=Org1MSP
+        - CORE_PEER_ADDRESS=${FABRIC_IP}:8051
+        # peer启动的chaincode运行环境是通过 unix:///host/var/run/docker.sock 启动的，脱离在docker stack 外部。所以需要给外部访问地址才能和peer联通
+      working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+      command: peer node start
+      ports:
+        - 8051:7051
+        - 8053:7053
+      volumes:
+          - /var/run/:/host/var/run/
+          - /mnt/nfs/fabric-in-swarm/artifacts/crypto-config/peerOrganizations/org1.example.com/peers/peer1.org1.example.com/:/etc/hyperledger/crypto/peer
+      depends_on:
+        - orderer
+      networks:
+        default:
+          aliases:
+          - peer1.org1.example.com
+
+  peer2:
+      image: hyperledger/fabric-peer:x86_64-1.0.0
+      environment:
+        - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+        # GODEBUG=netdns=go 在阿里云环境需要这个环境变量channel
+        - GODEBUG=netdns=go
+        - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=default
+        # default是stack默认的网络，全称是stack名称_default
+        - CORE_LOGGING_LEVEL=DEBUG
+        - CORE_PEER_GOSSIP_USELEADERELECTION=true
+        - CORE_PEER_GOSSIP_ORGLEADER=false
+        - CORE_PEER_GOSSIP_SKIPHANDSHAKE=true
+        - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/crypto/peer/msp
+        - CORE_PEER_TLS_ENABLED=false
+        - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/crypto/peer/tls/server.key
+        - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/crypto/peer/tls/server.crt
+        - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto/peer/tls/ca.crt
+        #
+        - CORE_PEER_ID=peer0.org2.example.com
+        - CORE_PEER_LOCALMSPID=Org2MSP
+        - CORE_PEER_ADDRESS=${FABRIC_IP}:9051
+        # peer启动的chaincode运行环境是通过 unix:///host/var/run/docker.sock 启动的，脱离在docker stack 外部。所以需要给外部访问地址才能和peer联通
+      working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+      command: peer node start
+      ports:
+        - 9051:7051
+        - 9053:7053
+      volumes:
+          - /var/run/:/host/var/run/
+          - /mnt/nfs/fabric-in-swarm/artifacts/crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/:/etc/hyperledger/crypto/peer
+      depends_on:
+        - orderer
+      networks:
+        default:
+          aliases:
+          - peer0.org2.example.com
+
+  peer3:
+      image: hyperledger/fabric-peer:x86_64-1.0.0
+      environment:
+        - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+        # GODEBUG=netdns=go 在阿里云环境需要这个环境变量channel
+        - GODEBUG=netdns=go
+        - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=default
+        # default是stack默认的网络，全称是stack名称_default
+        - CORE_LOGGING_LEVEL=DEBUG
+        - CORE_PEER_GOSSIP_USELEADERELECTION=true
+        - CORE_PEER_GOSSIP_ORGLEADER=false
+        - CORE_PEER_GOSSIP_SKIPHANDSHAKE=true
+        - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/crypto/peer/msp
+        - CORE_PEER_TLS_ENABLED=false
+        - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/crypto/peer/tls/server.key
+        - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/crypto/peer/tls/server.crt
+        - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/crypto/peer/tls/ca.crt
+        #
+        - CORE_PEER_ID=peer1.org2.example.com
+        - CORE_PEER_LOCALMSPID=Org2MSP
+        - CORE_PEER_ADDRESS=${FABRIC_IP}:10051
+        # peer启动的chaincode运行环境是通过 unix:///host/var/run/docker.sock 启动的，脱离在docker stack 外部。所以需要给外部访问地址才能和peer联通
+      working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+      command: peer node start
+      ports:
+        - 10051:7051
+        - 10053:7053
+      volumes:
+          - /var/run/:/host/var/run/
+          - /mnt/nfs/fabric-in-swarm/artifacts/crypto-config/peerOrganizations/org2.example.com/peers/peer1.org2.example.com/:/etc/hyperledger/crypto/peer
+      depends_on:
+        - orderer
+      networks:
+        default:
+          aliases:
+          - peer1.org2.example.com
+
+
+  cli:
+    image: hyperledger/fabric-tools:x86_64-1.0.0
+    tty: true
+    environment:
+      - GOPATH=/opt/gopath
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_LOGGING_LEVEL=DEBUG
+      - CORE_PEER_ID=cli
+      - CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+      - CORE_PEER_LOCALMSPID=Org1MSP
+      - CORE_PEER_TLS_ENABLED=false
+      - CORE_PEER_TLS_CERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+      - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: /bin/bash -c 'sleep 10;./scripts/script.sh ; sleep 99999999999'
+    volumes:
+        - /var/run/:/host/var/run/
+        - /mnt/nfs/fabric-in-swarm/e2e_cli/examples/chaincode/go/:/opt/gopath/src/github.com/hyperledger/fabric/examples/chaincode/go
+        - /mnt/nfs/fabric-in-swarm/artifacts/crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/
+        - /mnt/nfs/fabric-in-swarm/e2e_cli/scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/
+        - /mnt/nfs/fabric-in-swarm/artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
+    depends_on:
+      - orderer
+      - peer0
+      - peer1
+      - peer2
+      - peer3
+    networks:
+        default:
+          aliases:
+          - cli
