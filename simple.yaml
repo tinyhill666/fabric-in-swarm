@@ -53,6 +53,8 @@ services:
     image: hyperledger/fabric-peer:x86_64-1.0.0
     environment:
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      # GODEBUG=netdns=go 在阿里云环境需要这个环境变量
+      - GODEBUG=netdns=go
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=default
       #default是stack默认的网络，全称是stack名称_default
       - CORE_LOGGING_LEVEL=DEBUG
